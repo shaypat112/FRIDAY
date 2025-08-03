@@ -7,282 +7,352 @@ import os
 import subprocess
 import random
 import sys
-import ctypes
-import screen_brightness_control as sbc
 import pyautogui
+from difflib import get_close_matches
 
-# Initialize components
-engine = pyttsx3.init()
-recognizer = sr.Recognizer()
+# Try to import optional packages
+try:
+    import screen_brightness_control as sbc
+    BRIGHTNESS_CONTROL = True
+except ImportError:
+    BRIGHTNESS_CONTROL = False
+    print("Note: Brightness control disabled (missing screen_brightness_control package)")
 
-# Configure voice (Friday-style)
-voices = engine.getProperty('voices')
-engine.setProperty('voice', voices[1].id)  # Try 0 or 2 for different voices
-engine.setProperty('rate', 170)  # Slightly faster pace
-engine.setProperty('volume', 0.8)  # Slightly louder
+class VoiceAssistant:
+    def __init__(self):
+        # Initialize components
+        self.engine = pyttsx3.init()
+        self.recognizer = sr.Recognizer()
+        self.recognizer.energy_threshold = 400
+        self.command_history = []
+        
+        # Configure voice with more personality
+        voices = self.engine.getProperty('voices')
+        self.engine.setProperty('voice', voices[1].id)  # Female voice
+        self.engine.setProperty('rate', 165)  # Slightly slower for clarity
+        self.engine.setProperty('volume', 1.0)  # Maximum volume
 
-# Application paths (customize these to match your system)
-APP_PATHS = {
-    'whatsapp': r"C:\Users\shiva\AppData\Local\WhatsApp\WhatsApp.exe",
-    'spotify': r"C:\Users\shiva\AppData\Roaming\Spotify\Spotify.exe",
-    'vscode': r"C:\Users\shiva\AppData\Local\Programs\Microsoft VS Code\Code.exe",
-    'chrome': r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-    'notepad': r"C:\Windows\System32\notepad.exe",
-    'calculator': r"C:\Windows\System32\calc.exe",
-    'word': r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE",
-    'excel': r"C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE",
-    'powerpoint': r"C:\Program Files\Microsoft Office\root\Office16\POWERPNT.EXE",
-    'outlook': r"C:\Program Files\Microsoft Office\root\Office16\OUTLOOK.EXE"
-}
+        # Enhanced website list
+        self.website_commands = {
+            'youtube': 'https://youtube.com',
+            'google': 'https://google.com',
+            'github': 'https://github.com',
+            'wikipedia': 'https://wikipedia.org',
+            'amazon': 'https://amazon.com',
+            'netflix': 'https://netflix.com',
+            'spotify': 'https://spotify.com',
+            'twitter': 'https://twitter.com',
+            'facebook': 'https://facebook.com',
+            'instagram': 'https://instagram.com',
+            'reddit': 'https://reddit.com',
+            'linkedin': 'https://linkedin.com',
+            'outlook': 'https://outlook.com',
+            'gmail': 'https://mail.google.com',
+            'drive': 'https://drive.google.com',
+            'maps': 'https://maps.google.com',
+            'weather': 'https://weather.com',
+            'news': 'https://news.google.com',
+            'imdb': 'https://imdb.com',
+            'stack overflow': 'https://stackoverflow.com'
+        }
 
-# Website URLs
-WEBSITES = {
-    'youtube': 'https://youtube.com',
-    'gmail': 'https://mail.google.com',
-    'google': 'https://google.com',
-    'github': 'https://github.com',
-    'linkedin': 'https://linkedin.com',
-    'twitter': 'https://twitter.com',
-    'facebook': 'https://facebook.com',
-    'instagram': 'https://instagram.com',
-    'amazon': 'https://amazon.com',
-    'netflix': 'https://netflix.com',
-    'wikipedia': 'https://wikipedia.org',
-    'reddit': 'https://reddit.com',
-    'stackoverflow': 'https://stackoverflow.com',
-    'discord': 'https://discord.com',
-    'zoom': 'https://zoom.us'
-}
+    def speak(self, text, is_priority=False, response_type=None):
+        """Enhanced text-to-speech with more personality"""
+        responses = {
+            'acknowledge': [
+                "Right away, sir.", 
+                "On it, sir.",
+                "Processing your request now.",
+                "I'll take care of that for you.",
+                "Working on that immediately."
+            ],
+            'success': [
+                "All done, sir.",
+                "Task completed successfully.",
+                "I've taken care of that for you.",
+                "Mission accomplished.",
+                "Your request has been fulfilled."
+            ],
+            'error': [
+                "I'm sorry, I couldn't complete that request.",
+                "Apologies, sir. I encountered an issue.",
+                "I wasn't able to do that for you.",
+                "Something went wrong with that command.",
+                "My systems report a problem with that request."
+            ],
+            'greeting': [
+                "At your service, sir. How may I assist you today?",
+                "Ready and awaiting your commands.",
+                "How can I be of assistance today?",
+                "I'm here to help. What would you like me to do?"
+            ]
+        }
+        
+        if response_type in responses:
+            text = f"{random.choice(responses[response_type])} {text}"
+        
+        print(f"Friday: {text}")
+        if is_priority:
+            self.engine.stop()
+        
+        # Split into sentences for more natural speech
+        sentences = [s.strip() for s in text.split('.') if s.strip()]
+        for sentence in sentences:
+            self.engine.say(sentence)
+            self.engine.runAndWait()
+            time.sleep(0.15)  # Natural pause between sentences
 
-# System commands
-SYSTEM_COMMANDS = {
-    'shutdown': 'shutdown /s /t 1',
-    'restart': 'shutdown /r /t 1',
-    'sleep': 'rundll32.exe powrprof.dll,SetSuspendState 0,1,0',
-    'lock': 'rundll32.exe user32.dll,LockWorkStation'
-}
+    def greet(self):
+        """More personalized time-based greeting"""
+        hour = datetime.datetime.now().hour
+        day_part = "morning" if 5 <= hour < 12 else "afternoon" if 12 <= hour < 17 else "evening"
+        
+        greetings = {
+            'morning': [
+                "A very good morning to you, sir! How may I assist you today?",
+                "Morning, sir! Ready to tackle the day together?",
+                "Good morning! What would you like me to help with today?"
+            ],
+            'afternoon': [
+                "Good afternoon, sir. How can I be of service?",
+                "Afternoon protocols engaged. What's on the agenda?",
+                "Good afternoon! What would you like me to do for you?"
+            ],
+            'evening': [
+                "Good evening, sir. How may I assist you tonight?",
+                "Evening systems online. Your commands, sir?",
+                "Good evening! What can I do for you at this hour?"
+            ]
+        }
+        
+        self.speak(random.choice(greetings[day_part]), response_type='greeting')
 
-# Conversation phrases
-RESPONSES = {
-    'acknowledge': [
-        "Right away, sir.",
-        "On it, sir.",
-        "Processing that now.",
-        "Executing your command."
-    ],
-    'success': [
-        "Task completed successfully.",
-        "Done, sir.",
-        "Operation finished.",
-        "Your request has been fulfilled."
-    ],
-    'error': [
-        "I encountered a problem with that, sir.",
-        "Apologies, I couldn't complete that.",
-        "There seems to be an issue.",
-        "My systems report a malfunction."
-    ]
-}
-
-def speak(text, priority=False, type=None):
-    """Enhanced Friday-style text-to-speech with conversational responses"""
-    if type and type in RESPONSES:
-        text = random.choice(RESPONSES[type]) + " " + text
-    
-    print(f"Friday: {text}")
-    if priority:
-        engine.stop()  # Stop any current speech
-    engine.say(text)
-    engine.runAndWait()
-
-def greet():
-    """Personalized greeting with conversational tone"""
-    hour = datetime.datetime.now().hour
-    
-    greeting_options = {
-        'morning': [
-            f"Good morning, sir. How may I assist you today?",
-            f"Morning, sir. Ready for your commands."
-        ],
-        'afternoon': [
-            f"Good afternoon Sir, Protocols Initiated. What can I do for you?",
-            f"Afternoon, How may I be of service?"
-        ],
-        'evening': [
-            f"Good evening, Protocols Initiated. Your commands?",
-            f"Evening, sir. Awaiting your instructions."
-        ]
-    }
-    
-    if 5 <= hour < 12:
-        greeting = random.choice(greeting_options['morning'])
-    elif 12 <= hour < 18:
-        greeting = random.choice(greeting_options['afternoon'])
-    else:
-        greeting = random.choice(greeting_options['evening'])
-    
-    speak(greeting)
-
-def recognize_speech(timeout=5):
-    """Enhanced speech recognition with conversational feedback"""
-    with sr.Microphone() as source:
-        for attempt in range(3):
+    def recognize_speech(self, timeout=5):
+        """Enhanced speech recognition with more feedback"""
+        with sr.Microphone() as source:
             try:
-                speak("I'm listening, sir.", type='acknowledge')
-                print("\n[System] Listening...")
-                recognizer.adjust_for_ambient_noise(source)
-                audio = recognizer.listen(source, timeout=timeout)
+                print("\n[System] Listening... (speak now)")
+                self.speak("I'm listening, sir.", response_type='acknowledge')
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.8)
+                audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=8)
                 
-                command = recognizer.recognize_google(audio).lower()
+                command = self.recognizer.recognize_google(audio).lower()
                 print(f"You said: {command}")
-                speak("Command received.", type='acknowledge')
+                self.speak("Command received and understood.", response_type='acknowledge')
                 return command
                 
             except sr.WaitTimeoutError:
-                if attempt < 2:
-                    speak("I didn't catch that, sir. Please repeat.", type='error')
-                    continue
+                self.speak("I didn't hear anything. Shall I continue listening?", response_type='error')
+                return None
+            except sr.UnknownValueError:
+                self.speak("I couldn't understand that. Could you please repeat?", response_type='error')
                 return None
             except Exception as e:
-                speak(f"Audio processing error: {str(e)}", type='error')
+                self.speak(f"Audio processing error: {str(e)}", response_type='error')
                 return None
-        return None
 
-def execute_command(command):
-    """Enhanced command execution with full conversational feedback"""
-    if not command:
-        speak("No command detected, sir.", type='error')
-        return
+    def execute_command(self, command):
+        """Enhanced command execution with more conversational responses"""
+        if not command:
+            self.speak("I didn't receive any command, sir.", response_type='error')
+            return
+            
+        self.command_history.append({
+            'time': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'command': command
+        })
         
-    # Application commands
-    for app_name, app_path in APP_PATHS.items():
-        if f'open {app_name}' in command:
-            if os.path.exists(app_path):
-                speak(f"Initializing {app_name} application.", type='acknowledge')
-                subprocess.Popen([app_path])
-                speak(f"{app_name.capitalize()} is now running, sir.", type='success')
+        # Application commands
+        app_commands = {
+            'notepad': ('notepad.exe', "Opening your notes", "I couldn't open Notepad"),
+            'calculator': ('calc.exe', "Launching the calculator", "Calculator access failed"),
+            'chrome': ('chrome.exe', "Opening Chrome browser", "Couldn't launch Chrome"),
+            'spotify': ('spotify.exe', "Starting Spotify for you", "Spotify couldn't be opened"),
+            'word': ('WINWORD.EXE', "Opening Microsoft Word", "Word document failed to open"),
+            'excel': ('EXCEL.EXE', "Launching Excel spreadsheet", "Excel couldn't be started")
+        }
+        
+        for app, (exe, success_msg, error_msg) in app_commands.items():
+            if f'open {app}' in command:
+                try:
+                    self.speak(success_msg, response_type='acknowledge')
+                    os.startfile(exe)
+                    self.speak(f"{app.capitalize()} is now ready for you.", response_type='success')
+                    return
+                except Exception:
+                    self.speak(error_msg, response_type='error')
+                    return
+        
+        # Website commands with more feedback
+        for site, url in self.website_commands.items():
+            if f'open {site}' in command:
+                self.speak(f"Accessing {site.replace('_', ' ')} for you.", response_type='acknowledge')
+                webbrowser.open(url)
+                self.speak(f"{site.capitalize()} is now available in your browser.", response_type='success')
+                return
+        
+        # System commands with confirmation
+        if 'shutdown' in command:
+            self.speak("Initiating system shutdown sequence. Confirm?", response_type='acknowledge')
+            confirm = self.recognize_speech()
+            if confirm and 'yes' in confirm:
+                self.speak("Shutting down now. Goodbye, sir.", response_type='acknowledge')
+                os.system("shutdown /s /t 1")
             else:
-                speak(f"I couldn't locate the {app_name} application.", type='error')
-            return
-    
-    # Website commands
-    for site_name, site_url in WEBSITES.items():
-        if f'open {site_name}' in command:
-            speak(f"Accessing {site_name} servers.", type='acknowledge')
-            webbrowser.open(site_url)
-            speak(f"{site_name.capitalize()} is now available on your display, sir.", type='success')
-            return
-    
-    # System commands
-    for sys_cmd, cmd_string in SYSTEM_COMMANDS.items():
-        if sys_cmd in command:
-            speak(f"Initiating system {sys_cmd} sequence.", type='acknowledge')
-            os.system(cmd_string)
-            return
-    
-    # Special commands
-    if 'time' in command:
-        current_time = datetime.datetime.now().strftime("%I:%M %p")
-        speak(f"Current system time is {current_time}, sir.", type='success')
-    
-    elif 'date' in command:
-        current_date = datetime.datetime.now().strftime("%A, %B %d, %Y")
-        speak(f"Today's date is {current_date}, sir.", type='success')
-    
-    elif 'search' in command:
-        query = command.replace('search', '').strip()
-        if query:
-            speak(f"Initiating search protocol for: {query}", type='acknowledge')
-            webbrowser.open(f"https://google.com/search?q={query}")
-            speak(f"Search results for {query} are now displayed, sir.", type='success')
+                self.speak("Shutdown cancelled.", response_type='success')
+        elif 'restart' in command:
+            self.speak("Preparing to restart the system. Should I proceed?", response_type='acknowledge')
+            confirm = self.recognize_speech()
+            if confirm and 'yes' in confirm:
+                self.speak("Rebooting now. See you soon, sir.", response_type='acknowledge')
+                os.system("shutdown /r /t 1")
+            else:
+                self.speak("Restart aborted.", response_type='success')
+        elif 'lock' in command:
+            self.speak("Securing your workstation now.", response_type='acknowledge')
+            os.system("rundll32.exe user32.dll,LockWorkStation")
+        
+        # Enhanced special commands
+        elif 'time' in command:
+            current_time = datetime.datetime.now()
+            hour = current_time.hour
+            minute = current_time.minute
+            am_pm = "AM" if hour < 12 else "PM"
+            hour_12 = hour if hour <= 12 else hour - 12
+            
+            time_greetings = [
+                f"The current time is {hour_12}:{minute:02d} {am_pm}",
+                f"My systems show the time as {hour_12}:{minute:02d} {am_pm}",
+                f"It's now {hour_12}:{minute:02d} {am_pm}",
+                f"The clock reads {hour_12}:{minute:02d} {am_pm}"
+            ]
+            
+            if hour < 5:
+                time_greetings.append(f"It's {hour_12}:{minute:02d} {am_pm}. Quite late, sir. Shouldn't you be resting?")
+            elif hour < 12:
+                time_greetings.append(f"Good morning! The time is {hour_12}:{minute:02d} {am_pm}")
+            elif hour < 17:
+                time_greetings.append(f"Good afternoon! It's {hour_12}:{minute:02d} {am_pm}")
+            else:
+                time_greetings.append(f"Good evening! The time is now {hour_12}:{minute:02d} {am_pm}")
+            
+            self.speak(random.choice(time_greetings), response_type='success')
+
+        elif 'date' in command:
+            current_date = datetime.datetime.now()
+            weekday = current_date.strftime("%A")
+            month = current_date.strftime("%B")
+            day = current_date.strftime("%d").lstrip('0')
+            year = current_date.strftime("%Y")
+            
+            date_responses = [
+                f"Today is {weekday}, {month} {day}",
+                f"The date today is {weekday}, {month} {day}",
+                f"According to my calendar, it's {weekday}, {month} {day}",
+                f"We're currently on {weekday}, {month} {day}"
+            ]
+            
+            if 'year' in command:
+                date_responses.append(f"The year is {year}")
+                date_responses.append(f"We're in the year {year}")
+            
+            for response in date_responses:
+                self.speak(response, response_type='success')
+                time.sleep(0.3)
+
+        elif 'search' in command:
+            query = command.replace('search', '').replace('for', '').strip()
+            if query:
+                search_phrases = [
+                    f"Searching the web for information about {query}",
+                    f"Looking up {query} for you",
+                    f"Let me find results about {query}",
+                    f"Accessing search engines for {query}"
+                ]
+                self.speak(random.choice(search_phrases), response_type='acknowledge')
+                webbrowser.open(f"https://google.com/search?q={query}")
+                self.speak(f"I've displayed search results for {query} in your browser.", response_type='success')
+            else:
+                self.speak("What would you like me to search for? Please be specific.", response_type='error')
+
+        elif 'brightness' in command and BRIGHTNESS_CONTROL:
+            current = sbc.get_brightness()[0]
+            if 'up' in command:
+                new = min(100, current + 20)
+                sbc.set_brightness(new)
+                self.speak(f"Screen brightness increased to {new} percent. Is this comfortable?", response_type='success')
+            elif 'down' in command:
+                new = max(0, current - 20)
+                sbc.set_brightness(new)
+                self.speak(f"Brightness decreased to {new} percent. Better for your eyes now?", response_type='success')
+            elif 'set' in command:
+                try:
+                    level = int(command.split()[-1])
+                    if 0 <= level <= 100:
+                        sbc.set_brightness(level)
+                        self.speak(f"Screen brightness adjusted to {level} percent as requested.", response_type='success')
+                    else:
+                        self.speak("Please specify a brightness level between 0 and 100 percent.", response_type='error')
+                except ValueError:
+                    self.speak("I didn't understand the brightness level you requested.", response_type='error')
+
+        elif 'exit' in command or 'quit' in command or 'shutdown' in command:
+            farewells = [
+                "Shutting down systems now. Goodbye, sir.",
+                "Powering off. It was a pleasure assisting you.",
+                "Disconnecting. Have a wonderful day, sir!",
+                "Friday signing off. Until next time!"
+            ]
+            self.speak(random.choice(farewells), response_type='acknowledge')
+            sys.exit()
+
         else:
-            speak("Please specify your search query, sir.", type='error')
-    
-    elif 'brightness up' in command:
-        current = sbc.get_brightness()[0]
-        new = min(100, current + 20)
-        sbc.set_brightness(new)
-        speak(f"Screen brightness increased to {new} percent, sir.", type='success')
-    
-    elif 'brightness down' in command:
-        current = sbc.get_brightness()[0]
-        new = max(0, current - 20)
-        sbc.set_brightness(new)
-        speak(f"Screen brightness decreased to {new} percent, sir.", type='success')
-    
-    elif 'volume up' in command:
-        pyautogui.press('volumeup')
-        speak("Volume increased, sir.", type='success')
-    
-    elif 'volume down' in command:
-        pyautogui.press('volumedown')
-        speak("Volume decreased, sir.", type='success')
-    
-    elif 'mute' in command:
-        pyautogui.press('volumemute')
-        speak("Audio muted, sir.", type='success')
-    
-    elif 'take screenshot' in command:
-        screenshot = pyautogui.screenshot()
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"screenshot_{timestamp}.png"
-        screenshot.save(filename)
-        speak(f"Screenshot saved as {filename}, sir.", type='success')
-    
-    elif 'exit' in command or 'quit' in command or 'shutdown' in command:
-        speak("Initiating shutdown sequence. Goodbye, sir.", type='acknowledge')
-        sys.exit()
-    
-    else:
-        speak("Command syntax not recognized. Please rephrase, sir.", type='error')
+            suggestions = [
+                "I'm not sure I understood that command. Try saying things like:",
+                "My apologies, I didn't catch that. You can ask me to:",
+                "I didn't recognize that request. Here are some things I can do:"
+            ]
+            
+            examples = [
+                "Open applications like Notepad or Chrome",
+                "Visit websites like YouTube or Wikipedia",
+                "Tell you the current time or date",
+                "Search the web for information",
+                "Adjust your screen brightness",
+                "Lock your computer or restart it"
+            ]
+            
+            self.speak(random.choice(suggestions), response_type='error')
+            time.sleep(0.5)
+            for example in random.sample(examples, 3):
+                self.speak(example)
+                time.sleep(0.3)
 
-def display_help():
-    """Display available commands"""
-    print("\nAvailable Commands:")
-    print("\nApplications:")
-    for app in APP_PATHS.keys():
-        print(f"- 'open {app}'")
-    
-    print("\nWebsites:")
-    for site in WEBSITES.keys():
-        print(f"- 'open {site}'")
-    
-    print("\nSystem Commands:")
-    for cmd in SYSTEM_COMMANDS.keys():
-        print(f"- '{cmd}'")
-    
-    print("\nOther Commands:")
-    print("- 'time' (current time)")
-    print("- 'date' (current date)")
-    print("- 'search [query]' (web search)")
-    print("- 'brightness up/down'")
-    print("- 'volume up/down/mute'")
-    print("- 'take screenshot'")
-    print("")
-    
-
-def main():
-    """Main assistant loop with enhanced conversation"""
-    greet()
-    display_help()
-    
-    while True:
-        # Conversational prompt
-        speak("Awaiting your next command, sir.")
-        
-        # Get and execute command
-        command = recognize_speech()
-        if command:
-            execute_command(command)
-        
-        # Small delay to prevent CPU overuse
-        time.sleep(0.5)
+    def run(self):
+        """Main execution loop with enhanced interaction"""
+        self.greet()
+        while True:
+            try:
+                # Check for inactivity
+                if len(self.command_history) > 0:
+                    last_cmd_time = datetime.datetime.strptime(self.command_history[-1]['time'], "%Y-%m-%d %H:%M:%S")
+                    if (datetime.datetime.now() - last_cmd_time).seconds > 120:
+                        self.speak("I'm still here if you need me, sir.", response_type='greeting')
+                
+                command = self.recognize_speech()
+                if command:
+                    self.execute_command(command)
+                
+                time.sleep(0.5)
+                
+            except KeyboardInterrupt:
+                self.speak("Emergency shutdown initiated. Goodbye, sir!", response_type='error')
+                sys.exit()
+            except Exception as e:
+                self.speak(f"System error detected: {str(e)}. Attempting to recover...", response_type='error')
+                time.sleep(1)
+                continue
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        speak("Emergency shutdown protocol activated. Goodbye, sir.", type='error')
-    except Exception as e:
-        speak(f"Critical system failure detected: {str(e)}. Rebooting...", type='error')
-        main()
+    assistant = VoiceAssistant()
+    assistant.run()
